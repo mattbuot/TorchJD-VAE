@@ -20,8 +20,8 @@ exp_params:
   manual_seed: 1265
 
 trainer_params:
-  # gpus: [1]
-  max_epochs: 100
+  #gpus: []
+  max_epochs: 2
 
 logging_params:
   save_dir: "logs/"

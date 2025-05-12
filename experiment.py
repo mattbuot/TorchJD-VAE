@@ -11,6 +11,9 @@ import torchvision.utils as vutils
 from torchvision.datasets import CelebA
 from torch.utils.data import DataLoader
 
+from torchjd import mtl_backward
+from torchjd.aggregation import UPGrad
+
 
 class VAEXperiment(pl.LightningModule):
 
@@ -23,7 +26,7 @@ class VAEXperiment(pl.LightningModule):
         self.params = params
         self.curr_device = None
         self.hold_graph = False
-        self.automatic_optimization = False
+        #self.automatic_optimization = False
         try:
             self.hold_graph = self.params['retain_first_backpass']
         except:
@@ -41,6 +44,8 @@ class VAEXperiment(pl.LightningModule):
                                               M_N = self.params['kld_weight'], #al_img.shape[0]/ self.num_train_imgs,
                                               #optimizer_idx=optimizer_idx,
                                               batch_idx = batch_idx)
+        
+        #mtl_backward(losses=[loss1, loss2], features=features, aggregator=UPGrad())
 
         self.log_dict({key: val.item() for key, val in train_loss.items()}, sync_dist=True)
 
