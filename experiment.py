@@ -12,14 +12,14 @@ from torchvision.datasets import CelebA
 from torch.utils.data import DataLoader
 from torch.nn.functional import cosine_similarity
 
-from torchjd import mtl_backward
+from torchjd import mtl_backward, backward
 from torchjd.aggregation import UPGrad, Sum
 
 def print_weights(_, __, weights: torch.Tensor) -> None:
     """Prints the extracted weights."""
     print(f"Weights: {weights}")
 
-def print_similarity_with_gd(_, inputs: torch.Tensor, aggregation: torch.Tensor) -> None:
+def print_similarity_with_gd(_, inputs: tuple[torch.Tensor], aggregation: torch.Tensor) -> None:
     """Prints the cosine similarity between the aggregation and the average gradient."""
     matrix = inputs[0]
     gd_output = matrix.mean(dim=0)
@@ -29,6 +29,12 @@ def print_similarity_with_gd(_, inputs: torch.Tensor, aggregation: torch.Tensor)
 def print_aggregated_gradients(_, __, aggregation: torch.Tensor) -> None:
     """Prints the aggregated gradients."""
     print(f"Aggregated gradients: {aggregation}")
+
+def print_jacobian(_, inputs: tuple[torch.Tensor], __) -> None:
+    """Prints the Jacobian matrix."""
+    jacobian = inputs[0]
+    print(f"Jacobian: {jacobian}")
+
 
 class VAEXperiment(pl.LightningModule):
 
@@ -46,6 +52,7 @@ class VAEXperiment(pl.LightningModule):
         self.aggregator = Sum() # UPGrad()
         self.aggregator.weighting.register_forward_hook(print_weights)
         self.aggregator.register_forward_hook(print_similarity_with_gd)
+        self.aggregator.register_forward_hook(print_jacobian)
         #self.aggregator.register_forward_hook(print_aggregated_gradients)
 
         try:
@@ -77,11 +84,49 @@ class VAEXperiment(pl.LightningModule):
         opt = self.optimizers()
         opt.zero_grad()
 
-        mtl_backward(losses=[reconstruction_loss, kld_loss],
-                     features=[mu, log_var],
-                     aggregator=self.aggregator,)
+        # decoder_kld_grad = torch.autograd.grad(
+        #     outputs=kld_loss,
+        #     inputs=self.model.decoder.parameters(),
+        #     retain_graph=True,
+        #     allow_unused=True,
+        # )
+        # print(f"Decoder KLD grad: {decoder_kld_grad}")
+        # for grad in decoder_kld_grad:
+        #     torch.testing.assert_close(grad, torch.zeros_like(grad))
+
+        encoder_kld_grad = torch.autograd.grad(
+            outputs=kld_loss,
+            inputs=self.model.encoder.parameters(),
+            retain_graph=True,
+        )
+
+        print(f"Encoder KLD grad: {encoder_kld_grad}")
+
+        encoder_recon_grad = torch.autograd.grad(
+            outputs=reconstruction_loss,
+            inputs=self.model.encoder.parameters(),
+            retain_graph=True,
+        )
+        print(f"Encoder Recon grad: {encoder_recon_grad}")
+
+        decoder_recon_grad = torch.autograd.grad(
+            outputs=reconstruction_loss,
+            inputs=self.model.decoder.parameters(),
+            retain_graph=True,
+        )
+        print(f"Decoder Recon grad: {decoder_recon_grad}")
 
         #train_loss.backward()
+
+        # mtl_backward(losses=[reconstruction_loss, kld_loss],
+        #              features=[mu, log_var],
+                    #   aggregator=self.aggregator,)
+
+        backward(tensors=[reconstruction_loss, kld_loss],
+                 aggregator=self.aggregator,)
+
+        # print(f"Encoder grad : {next(self.model.encoder.parameters()).grad}")
+        # print(f"Decoder grad : {next(self.model.decoder.parameters()).grad}")
         
         # for param in self.model.decoder.parameters():
         #     if param.grad is not None:
