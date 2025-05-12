@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torchjd-vae"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pytorch-lightning>=1.5.6",
+    "pyyaml>=6.0.2",
+    "tensorboard>=2.2.0",
+    "torch>=1.6.1",
+    "torchjd>=0.6.0",
+    "torchsummary>=1.5.1",
+    "torchvision>=0.10.1",
+]

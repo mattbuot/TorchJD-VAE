@@ -14,3 +14,7 @@ Run.ipynb
 .venv/
 
 .python-version
+
+.DS_Store
+
+*.egg-info/
