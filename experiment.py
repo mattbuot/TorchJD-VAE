@@ -10,10 +10,25 @@ from torchvision import transforms
 import torchvision.utils as vutils
 from torchvision.datasets import CelebA
 from torch.utils.data import DataLoader
+from torch.nn.functional import cosine_similarity
 
 from torchjd import mtl_backward
-from torchjd.aggregation import UPGrad
+from torchjd.aggregation import UPGrad, Sum
 
+def print_weights(_, __, weights: torch.Tensor) -> None:
+    """Prints the extracted weights."""
+    print(f"Weights: {weights}")
+
+def print_similarity_with_gd(_, inputs: torch.Tensor, aggregation: torch.Tensor) -> None:
+    """Prints the cosine similarity between the aggregation and the average gradient."""
+    matrix = inputs[0]
+    gd_output = matrix.mean(dim=0)
+    similarity = cosine_similarity(aggregation, gd_output, dim=0)
+    print(f"Cosine similarity: {similarity.item():.4f}")
+
+def print_aggregated_gradients(_, __, aggregation: torch.Tensor) -> None:
+    """Prints the aggregated gradients."""
+    print(f"Aggregated gradients: {aggregation}")
 
 class VAEXperiment(pl.LightningModule):
 
@@ -26,7 +41,13 @@ class VAEXperiment(pl.LightningModule):
         self.params = params
         self.curr_device = None
         self.hold_graph = False
-        #self.automatic_optimization = False
+        self.automatic_optimization = False
+
+        self.aggregator = Sum() # UPGrad()
+        self.aggregator.weighting.register_forward_hook(print_weights)
+        self.aggregator.register_forward_hook(print_similarity_with_gd)
+        #self.aggregator.register_forward_hook(print_aggregated_gradients)
+
         try:
             self.hold_graph = self.params['retain_first_backpass']
         except:
@@ -36,20 +57,40 @@ class VAEXperiment(pl.LightningModule):
         return self.model(input, **kwargs)
 
     def training_step(self, batch, batch_idx):
-        real_img, labels = batch
+        real_img, _ = batch
         self.curr_device = real_img.device
 
-        results = self.forward(real_img, labels = labels)
-        train_loss = self.model.loss_function(*results,
+
+        mu, log_var = self.model.encode(real_img)
+        z = self.model.reparameterize(mu, log_var)
+        results = [self.model.decode(z), real_img, mu, log_var]
+
+        loss = self.model.loss_function(*results,
                                               M_N = self.params['kld_weight'], #al_img.shape[0]/ self.num_train_imgs,
                                               #optimizer_idx=optimizer_idx,
                                               batch_idx = batch_idx)
         
-        #mtl_backward(losses=[loss1, loss2], features=features, aggregator=UPGrad())
+        train_loss = loss['loss']
+        reconstruction_loss = loss['Reconstruction_Loss']
+        kld_loss = loss['KLD']
 
-        self.log_dict({key: val.item() for key, val in train_loss.items()}, sync_dist=True)
+        opt = self.optimizers()
+        opt.zero_grad()
 
-        return train_loss['loss']
+        mtl_backward(losses=[reconstruction_loss, kld_loss],
+                     features=[mu, log_var],
+                     aggregator=self.aggregator,)
+
+        #train_loss.backward()
+        
+        # for param in self.model.decoder.parameters():
+        #     if param.grad is not None:
+        #         param.grad /= 2
+        opt.step()
+
+        self.log_dict({key: val.item() for key, val in loss.items()}, sync_dist=True)
+
+        #return train_loss['loss']
 
     def validation_step(self, batch, batch_idx):
         real_img, labels = batch
