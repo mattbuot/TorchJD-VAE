@@ -11,9 +11,9 @@ import torchvision.utils as vutils
 from torchvision.datasets import CelebA
 from torch.utils.data import DataLoader
 from torch.nn.functional import cosine_similarity
-
+from enum import Enum
 from torchjd import mtl_backward, backward
-from torchjd.aggregation import UPGrad, Sum
+from torchjd.aggregation import UPGrad, Sum, Mean
 
 def print_weights(_, __, weights: torch.Tensor) -> None:
     """Prints the extracted weights."""
@@ -84,6 +84,13 @@ class VAEXperiment(pl.LightningModule):
         opt = self.optimizers()
         opt.zero_grad()
 
+        class BackwardOptions(Enum):
+            """Enum for backward options."""
+            TORCH = 0
+            TORCH_JD_BACKWARD = 1
+            TORCH_JD_MTL_BACKWARD = 2
+
+
         # decoder_kld_grad = torch.autograd.grad(
         #     outputs=kld_loss,
         #     inputs=self.model.decoder.parameters(),
@@ -94,36 +101,41 @@ class VAEXperiment(pl.LightningModule):
         # for grad in decoder_kld_grad:
         #     torch.testing.assert_close(grad, torch.zeros_like(grad))
 
-        encoder_kld_grad = torch.autograd.grad(
-            outputs=kld_loss,
-            inputs=self.model.encoder.parameters(),
-            retain_graph=True,
-        )
+        # encoder_kld_grad = torch.autograd.grad(
+        #     outputs=kld_loss,
+        #     inputs=self.model.encoder.parameters(),
+        #     retain_graph=True,
+        # )
 
-        print(f"Encoder KLD grad: {encoder_kld_grad}")
+        # print(f"Encoder KLD grad ({len(encoder_kld_grad)}): {encoder_kld_grad}")
 
-        encoder_recon_grad = torch.autograd.grad(
-            outputs=reconstruction_loss,
-            inputs=self.model.encoder.parameters(),
-            retain_graph=True,
-        )
-        print(f"Encoder Recon grad: {encoder_recon_grad}")
+        # encoder_recon_grad = torch.autograd.grad(
+        #     outputs=reconstruction_loss,
+        #     inputs=self.model.encoder.parameters(),
+        #     retain_graph=True,
+        # )
+        # print(f"Encoder Recon grad ({len(encoder_recon_grad)}): {encoder_recon_grad}")
 
-        decoder_recon_grad = torch.autograd.grad(
-            outputs=reconstruction_loss,
-            inputs=self.model.decoder.parameters(),
-            retain_graph=True,
-        )
-        print(f"Decoder Recon grad: {decoder_recon_grad}")
+        # decoder_recon_grad = torch.autograd.grad(
+        #     outputs=reconstruction_loss,
+        #     inputs=self.model.decoder.parameters(),
+        #     retain_graph=True,
+        # )
+        # print(f"Decoder Recon grad ({len(decoder_recon_grad)}): {decoder_recon_grad}")
 
-        #train_loss.backward()
+        backward_option = BackwardOptions.TORCH_JD_MTL_BACKWARD
 
-        # mtl_backward(losses=[reconstruction_loss, kld_loss],
-        #              features=[mu, log_var],
-                    #   aggregator=self.aggregator,)
-
-        backward(tensors=[reconstruction_loss, kld_loss],
-                 aggregator=self.aggregator,)
+        if backward_option == BackwardOptions.TORCH:
+            train_loss.backward()
+        elif backward_option == BackwardOptions.TORCH_JD_BACKWARD:
+            backward(tensors=[reconstruction_loss, kld_loss],
+                     aggregator=self.aggregator)
+        elif backward_option == BackwardOptions.TORCH_JD_MTL_BACKWARD:
+            mtl_backward(losses=[reconstruction_loss, kld_loss],
+                            features=[mu, log_var],
+                            aggregator=self.aggregator)
+        else:
+            raise ValueError("Invalid backward option")
 
         # print(f"Encoder grad : {next(self.model.encoder.parameters()).grad}")
         # print(f"Decoder grad : {next(self.model.decoder.parameters()).grad}")

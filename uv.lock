@@ -240,15 +240,6 @@ http = [
 ]
 
 [[package]]
-name = "future"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a7/b2/4140c69c6a66432916b26158687e821ba631a4c9273c474343badf84d3ba/future-1.0.0.tar.gz", hash = "sha256:bd2968309307861edae1458a4f8a4f3598c03be43b97521076aebf5d94c07b05", size = 1228490, upload-time = "2024-02-21T11:52:38.461Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/71/ae30dadffc90b9006d77af76b393cb9dfbfc9629f339fc1574a1c52e6806/future-1.0.0-py3-none-any.whl", hash = "sha256:929292d34f5872e70396626ef385ec22355a1fae8ad29e1a734c3e43f9fbc216", size = 491326, upload-time = "2024-02-21T11:52:35.956Z" },
-]
-
-[[package]]
 name = "grpcio"
 version = "1.71.0"
 source = { registry = "https://pypi.org/simple" }
@@ -761,34 +752,22 @@ wheels = [
 ]
 
 [[package]]
-name = "pydeprecate"
-version = "0.3.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1b/93/bf1ab43f9306a6972762abc12104cd5b35d1e93f2a85cf4ab08a19ccf71b/pyDeprecate-0.3.1.tar.gz", hash = "sha256:fa26870924d3475621c344045c2c01a16ba034113a902600c78e75b3fac5f72c", size = 11062, upload-time = "2021-05-31T16:49:43.666Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/17/ff7ec2752f53ea245499b23ee64e76d12f45fcde7a5b1b445f9c58cd1ec0/pyDeprecate-0.3.1-py3-none-any.whl", hash = "sha256:b5dd8c4c0535854b6a52936d1256883a940e3b02006fc7118b53027c0acde181", size = 10315, upload-time = "2021-05-31T16:49:42.458Z" },
-]
-
-[[package]]
 name = "pytorch-lightning"
-version = "1.5.6"
+version = "2.5.1.post0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fsspec", extra = ["http"] },
-    { name = "future" },
-    { name = "numpy" },
+    { name = "lightning-utilities" },
     { name = "packaging" },
-    { name = "pydeprecate" },
     { name = "pyyaml" },
-    { name = "tensorboard" },
     { name = "torch" },
     { name = "torchmetrics" },
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/c2/1efe2a2a6fc8f9cf91ebeda65ca83019d2e17ac72cd59528e7aab7ff0d4c/pytorch-lightning-1.5.6.tar.gz", hash = "sha256:8497004672de4df12cfe0934464f11b9eebef050c8d959582d17cc46aa5854e4", size = 443021, upload-time = "2021-12-15T23:17:51.413Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fe/0c/cfa6223c525f67ea3a7a2907e36e9e9a9653300f82cfd9af88f8136514ab/pytorch_lightning-2.5.1.post0.tar.gz", hash = "sha256:abc3d5a804d41f941b14e3fd7db5572a1270cd1e9889b50e962984c87d498d94", size = 634368, upload-time = "2025-04-25T20:24:29.272Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/5f/3ae279deedac8a5a8e3351e9fbfbadd5ce1859d0a315b867fdea19d19e94/pytorch_lightning-1.5.6-py3-none-any.whl", hash = "sha256:66152887e68fd63c221bd353bbbdbd68a8fc1fd72d1b1281edbf6945cd1b2f0d", size = 525401, upload-time = "2021-12-15T23:17:49.543Z" },
+    { url = "https://files.pythonhosted.org/packages/de/a9/e14821cfaf08e8d78185cca0477c9d3a62bafe1b4b530100f7b66bb1f7bb/pytorch_lightning-2.5.1.post0-py3-none-any.whl", hash = "sha256:873fb21392c8b79908218f5ca8f65bd835439216e52550c36ff55d849e99c93e", size = 823084, upload-time = "2025-04-25T20:24:27.421Z" },
 ]
 
 [[package]]
@@ -1057,7 +1036,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pytorch-lightning", specifier = ">=1.5.6" },
+    { name = "pytorch-lightning", specifier = ">=2.5.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "standard-imghdr", specifier = ">=3.13.0" },
     { name = "tensorboard", specifier = ">=2.2.0" },
