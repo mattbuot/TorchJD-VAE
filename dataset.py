@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.datasets import CelebA
 import zipfile
+from torchvision.datasets import MNIST
 
 
 # Add your custom dataset class here
@@ -81,6 +82,7 @@ class VAEDataset(LightningDataModule):
     def __init__(
         self,
         data_path: str,
+        dataset_name: str,
         train_batch_size: int = 8,
         val_batch_size: int = 8,
         patch_size: Union[int, Sequence[int]] = (256, 256),
@@ -91,6 +93,7 @@ class VAEDataset(LightningDataModule):
         super().__init__()
 
         self.data_dir = data_path
+        self.dataset_name = dataset_name
         self.train_batch_size = train_batch_size
         self.val_batch_size = val_batch_size
         self.patch_size = patch_size
@@ -125,32 +128,51 @@ class VAEDataset(LightningDataModule):
 #         )
         
 #       =========================  CelebA Dataset  =========================
-    
-        train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                              transforms.CenterCrop(148),
-                                              transforms.Resize(self.patch_size),
-                                              transforms.ToTensor(),])
-        
-        val_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
-                                            transforms.CenterCrop(148),
-                                            transforms.Resize(self.patch_size),
-                                            transforms.ToTensor(),])
-        
-        self.train_dataset = MyCelebA(
-            self.data_dir,
-            split='train',
-            transform=train_transforms,
-            download=False,
-        )
-        
-        # Replace CelebA with your dataset
-        self.val_dataset = MyCelebA(
-            self.data_dir,
-            split='test',
-            transform=val_transforms,
-            download=False,
-        )
+        use_celeba = self.dataset_name == "CelebA"
+        if use_celeba:
+            train_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
+                                                transforms.CenterCrop(148),
+                                                transforms.Resize(self.patch_size),
+                                                transforms.ToTensor(),])
+            
+            val_transforms = transforms.Compose([transforms.RandomHorizontalFlip(),
+                                                transforms.CenterCrop(148),
+                                                transforms.Resize(self.patch_size),
+                                                transforms.ToTensor(),])
+            
+            self.train_dataset = MyCelebA(
+                self.data_dir,
+                split='train',
+                transform=train_transforms,
+                download=False,
+            )
+            
+            # Replace CelebA with your dataset
+            self.val_dataset = MyCelebA(
+                self.data_dir,
+                split='test',
+                transform=val_transforms,
+                download=False,
+            )
 #       ===============================================================
+        else:
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+
+            
+            self.train_dataset = MNIST(
+                root=self.data_dir,
+                train=True,
+                download=True,
+                transform=transform,
+            )
+
+            self.val_dataset = MNIST(
+                root=self.data_dir,
+                train=False,
+                download=True,
+                transform=transform,
+            )
+#       ==========================================================
         
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
@@ -179,3 +201,46 @@ class VAEDataset(LightningDataModule):
             pin_memory=self.pin_memory,
         )
      
+
+class VAEMNISTDataset(LightningDataModule):
+    """
+    PyTorch Lightning data module for MNIST dataset.
+    """
+
+    def __init__(
+        self,
+        data_path: str,
+        train_batch_size: int = 8,
+        val_batch_size: int = 8,
+        patch_size: Union[int, Sequence[int]] = (256, 256),
+        num_workers: int = 0,
+        pin_memory: bool = False,
+        **kwargs,
+    ):
+        super().__init__()
+
+        self.data_dir = data_path
+        self.train_batch_size = train_batch_size
+        self.val_batch_size = val_batch_size
+        self.patch_size = patch_size
+        self.num_workers = num_workers
+        self.pin_memory = pin_memory
+
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+
+        
+        self.train_dataset = MNIST(
+            root=self.data_dir,
+            train=True,
+            transform=transform,
+        )
+
+        self.val_dataset = MNIST(
+            root=self.data_dir,
+            train=False,
+            transform=transform,
+        )
+
+    

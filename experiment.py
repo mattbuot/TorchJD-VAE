@@ -35,6 +35,7 @@ def print_jacobian(_, inputs: tuple[torch.Tensor], __) -> None:
     jacobian = inputs[0]
     print(f"Jacobian: {jacobian}")
 
+global_step = 0
 
 class VAEXperiment(pl.LightningModule):
 
@@ -49,10 +50,10 @@ class VAEXperiment(pl.LightningModule):
         self.hold_graph = False
         self.automatic_optimization = False
 
-        self.aggregator = Sum() # UPGrad()
-        self.aggregator.weighting.register_forward_hook(print_weights)
-        self.aggregator.register_forward_hook(print_similarity_with_gd)
-        self.aggregator.register_forward_hook(print_jacobian)
+        self.aggregator = UPGrad()
+        #self.aggregator.weighting.register_forward_hook(print_weights)
+        self.aggregator.register_forward_hook(self.log_cosine_similarity)
+        #self.aggregator.register_forward_hook(print_jacobian)
         #self.aggregator.register_forward_hook(print_aggregated_gradients)
 
         try:
@@ -64,6 +65,9 @@ class VAEXperiment(pl.LightningModule):
         return self.model(input, **kwargs)
 
     def training_step(self, batch, batch_idx):
+
+        global global_step
+
         real_img, _ = batch
         self.curr_device = real_img.device
 
@@ -79,75 +83,43 @@ class VAEXperiment(pl.LightningModule):
         
         train_loss = loss['loss']
         reconstruction_loss = loss['Reconstruction_Loss']
-        kld_loss = loss['KLD']
+        kld_loss = loss['KLD'] * self.params['kld_weight']
 
         opt = self.optimizers()
         opt.zero_grad()
 
-        class BackwardOptions(Enum):
+        class BackwardOptions(str, Enum):
             """Enum for backward options."""
-            TORCH = 0
-            TORCH_JD_BACKWARD = 1
-            TORCH_JD_MTL_BACKWARD = 2
+            TORCH = "torch"
+            TORCH_JD_BACKWARD = "torch_jd_backward"
+            TORCH_JD_MTL_BACKWARD = "torch_jd_mtl_backward"
 
 
-        # decoder_kld_grad = torch.autograd.grad(
-        #     outputs=kld_loss,
-        #     inputs=self.model.decoder.parameters(),
-        #     retain_graph=True,
-        #     allow_unused=True,
-        # )
-        # print(f"Decoder KLD grad: {decoder_kld_grad}")
-        # for grad in decoder_kld_grad:
-        #     torch.testing.assert_close(grad, torch.zeros_like(grad))
-
-        # encoder_kld_grad = torch.autograd.grad(
-        #     outputs=kld_loss,
-        #     inputs=self.model.encoder.parameters(),
-        #     retain_graph=True,
-        # )
-
-        # print(f"Encoder KLD grad ({len(encoder_kld_grad)}): {encoder_kld_grad}")
-
-        # encoder_recon_grad = torch.autograd.grad(
-        #     outputs=reconstruction_loss,
-        #     inputs=self.model.encoder.parameters(),
-        #     retain_graph=True,
-        # )
-        # print(f"Encoder Recon grad ({len(encoder_recon_grad)}): {encoder_recon_grad}")
-
-        # decoder_recon_grad = torch.autograd.grad(
-        #     outputs=reconstruction_loss,
-        #     inputs=self.model.decoder.parameters(),
-        #     retain_graph=True,
-        # )
-        # print(f"Decoder Recon grad ({len(decoder_recon_grad)}): {decoder_recon_grad}")
-
-        backward_option = BackwardOptions.TORCH_JD_MTL_BACKWARD
+        backward_option = self.params.get('backward_option', BackwardOptions.TORCH)
 
         if backward_option == BackwardOptions.TORCH:
             train_loss.backward()
         elif backward_option == BackwardOptions.TORCH_JD_BACKWARD:
             backward(tensors=[reconstruction_loss, kld_loss],
-                     aggregator=self.aggregator)
+                     aggregator=self.aggregator,
+                     parallel_chunk_size=1,)
         elif backward_option == BackwardOptions.TORCH_JD_MTL_BACKWARD:
             mtl_backward(losses=[reconstruction_loss, kld_loss],
                             features=[mu, log_var],
-                            aggregator=self.aggregator)
+                            aggregator=self.aggregator,
+                            parallel_chunk_size=1,)
         else:
             raise ValueError("Invalid backward option")
-
-        # print(f"Encoder grad : {next(self.model.encoder.parameters()).grad}")
-        # print(f"Decoder grad : {next(self.model.decoder.parameters()).grad}")
         
-        # for param in self.model.decoder.parameters():
-        #     if param.grad is not None:
-        #         param.grad /= 2
         opt.step()
 
         self.log_dict({key: val.item() for key, val in loss.items()}, sync_dist=True)
 
-        #return train_loss['loss']
+        # if batch_idx % 1000 == 0:
+        #     self.logger.experiment.add_histogram('Distribution of mu', mu.detach().cpu().numpy(), global_step=global_step, bins="rice")
+        #     self.logger.experiment.add_histogram('Distribution of log_var', log_var.detach().cpu().numpy(), global_step=global_step, bins="rice")
+        #     self.logger.experiment.add_histogram('Distribution of z', z.detach().cpu().numpy(), global_step=global_step, bins="rice")
+        #     global_step += 1
 
     def validation_step(self, batch, batch_idx):
         real_img, labels = batch
@@ -161,7 +133,14 @@ class VAEXperiment(pl.LightningModule):
 
         self.log_dict({f"val_{key}": val.item() for key, val in val_loss.items()}, sync_dist=True)
 
-        
+    def log_cosine_similarity(self, _, inputs: tuple[torch.Tensor], aggregation: torch.Tensor) -> None:
+        """Logs the cosine similarity between the aggregation and the average gradient."""
+        matrix = inputs[0]
+        gd_output = matrix.mean(dim=0)
+        similarity = cosine_similarity(aggregation, gd_output, dim=0)
+        self.log_dict({"Cosine Similarity": similarity.item()}, sync_dist=True)
+
+
     def on_validation_end(self) -> None:
         self.sample_images()
         

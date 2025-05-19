@@ -13,13 +13,13 @@ from dataset import VAEDataset
 import random as rand
 #from pytorch_lightning.plugins import DDPPlugin
 
-def main():
+def main(config_file):
     parser = argparse.ArgumentParser(description='Generic runner for VAE models')
     parser.add_argument('--config',  '-c',
                         dest="filename",
                         metavar='FILE',
                         help =  'path to the config file',
-                        default='configs/vae.yaml')
+                        default=config_file)
 
     args = parser.parse_args()
     with open(args.filename, 'r') as file:
@@ -28,9 +28,14 @@ def main():
         except yaml.YAMLError as exc:
             print(exc)
 
-
+    experiment_name = "GS_" + config["model_params"]["name"] + '_' + \
+                        config["exp_params"]["backward_option"] + '_' + \
+                        str(config["model_params"]["latent_dim"]) + '_' + \
+                        f"{config['exp_params']['kld_weight']:e}"
     tb_logger =  TensorBoardLogger(save_dir=config['logging_params']['save_dir'],
-                                name=config['model_params']['name'],)
+                                name=experiment_name,)
+    # Log hyperparameters to TensorBoard
+    tb_logger.log_hyperparams(config)
 
     # For reproducibility
     rand.seed(0)
@@ -66,4 +71,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    for config_file in [
+        "configs/grid_search/mnist_vae.yaml",
+        "configs/grid_search/mnist_vae0.yaml",
+        "configs/grid_search/mnist_vae1.yaml",
+        "configs/grid_search/mnist_vae2.yaml",
+        "configs/grid_search/mnist_vae3.yaml",
+        "configs/grid_search/mnist_vae4.yaml",
+        "configs/grid_search/mnist_vae5.yaml",
+        "configs/grid_search/mnist_vae6.yaml",
+        "configs/grid_search/mnist_vae7.yaml",
+        "configs/grid_search/mnist_vae8.yaml",
+    ]:
+        main(config_file)

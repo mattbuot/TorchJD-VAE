@@ -1,12 +1,12 @@
 model_params:
-  name: 'VanillaVAE'
-  in_channels: 3
+  name: "MNISTVanillaVAE"
+  in_channels: 1
   latent_dim: 8
 
 
 data_params:
   data_path: "Data/"
-  dataset_name: "CelebA"
+  dataset_name: "MNIST"
   train_batch_size: 64
   val_batch_size:  64
   patch_size: 64
@@ -16,15 +16,14 @@ data_params:
 exp_params:
   LR: 0.005
   weight_decay: 0.0
-  scheduler_gamma: 0.95
-  kld_weight: 0.00025
+  scheduler_gamma: 1.0
+  kld_weight: 0.0000001
   manual_seed: 1265
-  backward_option: "torch_jd_mtl_backward"
-
+  backward_option: "torch"
 
 trainer_params:
   #gpus: []
-  max_epochs: 4
+  max_epochs: 64
 
 logging_params:
   save_dir: "logs/"
