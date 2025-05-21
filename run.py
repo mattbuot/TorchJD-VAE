@@ -28,10 +28,11 @@ def main(config_file):
         except yaml.YAMLError as exc:
             print(exc)
 
-    experiment_name = "GS_" + config["model_params"]["name"] + '_' + \
+    experiment_name = "GS3_" + config["model_params"]["name"] + '_' + \
                         config["exp_params"]["backward_option"] + '_' + \
                         str(config["model_params"]["latent_dim"]) + '_' + \
-                        f"{config['exp_params']['kld_weight']:e}"
+                        f"{config['exp_params']['kld_weight']:e}" + '_' + \
+                        f"{config['exp_params']['kld_preferred_weight']}"
     tb_logger =  TensorBoardLogger(save_dir=config['logging_params']['save_dir'],
                                 name=experiment_name,)
     # Log hyperparameters to TensorBoard
@@ -72,15 +73,16 @@ def main(config_file):
 
 if __name__ == "__main__":
     for config_file in [
-        "configs/grid_search/mnist_vae.yaml",
-        "configs/grid_search/mnist_vae0.yaml",
-        "configs/grid_search/mnist_vae1.yaml",
-        "configs/grid_search/mnist_vae2.yaml",
-        "configs/grid_search/mnist_vae3.yaml",
-        "configs/grid_search/mnist_vae4.yaml",
-        "configs/grid_search/mnist_vae5.yaml",
-        "configs/grid_search/mnist_vae6.yaml",
-        "configs/grid_search/mnist_vae7.yaml",
-        "configs/grid_search/mnist_vae8.yaml",
+        #"configs/grid_search2/mnist_vae0.yaml",
+        # "configs/grid_search2/mnist_vae1.yaml",
+        # "configs/grid_search2/mnist_vae2.yaml",
+        # "configs/grid_search2/mnist_vae3.yaml",
+        # "configs/grid_search2/mnist_vae4.yaml",
+        #"configs/grid_search2/mnist_vae5.yaml",
+        #"configs/grid_search2/mnist_vae6.yaml",
+        #"configs/grid_search2/mnist_vae7.yaml",
+        #"configs/grid_search2/mnist_vae8.yaml",
+        #"configs/grid_search2/mnist_vae9.yaml",
+        "configs/grid_search2/mnist_vae10.yaml",
     ]:
         main(config_file)

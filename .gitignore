@@ -18,3 +18,4 @@ Run.ipynb
 .DS_Store
 
 *.egg-info/
+uv.lock

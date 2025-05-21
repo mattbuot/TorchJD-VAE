@@ -50,7 +50,7 @@ class VAEXperiment(pl.LightningModule):
         self.hold_graph = False
         self.automatic_optimization = False
 
-        self.aggregator = UPGrad()
+        self.aggregator = UPGrad(pref_vector=torch.Tensor([1, params['kld_preferred_weight']]).to(self.device),)
         #self.aggregator.weighting.register_forward_hook(print_weights)
         self.aggregator.register_forward_hook(self.log_cosine_similarity)
         #self.aggregator.register_forward_hook(print_jacobian)

@@ -14,16 +14,17 @@ data_params:
 
 
 exp_params:
-  LR: 0.003
+  LR: 0.01
   weight_decay: 0.0
   scheduler_gamma: 1.0
-  kld_weight: 0.000001
+  kld_weight: 0.00025
   manual_seed: 1265
   backward_option: "torch"
+  kld_preferred_weight: 0.01
 
 trainer_params:
   #gpus: []
-  max_epochs: 128
+  max_epochs: 64
 
 logging_params:
   save_dir: "logs/"
