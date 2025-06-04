@@ -1,19 +1,23 @@
-import os
 import math
+import os
+from enum import Enum
+
+import pytorch_lightning as pl
 import torch
+import torchvision.utils as vutils
 from torch import optim
+from torch.nn.functional import cosine_similarity
+from torch.utils.data import DataLoader
+from torchjd import backward, mtl_backward
+from torchjd.aggregation import Mean, Sum, UPGrad
+from torchvision import transforms
+from torchvision.datasets import CelebA
+
+from custom_aggregation import PairwiseUpgradAggregator
 from torchjd_vae.models import BaseVAE
 from torchjd_vae.models.types_ import *
 from utils import data_loader
-import pytorch_lightning as pl
-from torchvision import transforms
-import torchvision.utils as vutils
-from torchvision.datasets import CelebA
-from torch.utils.data import DataLoader
-from torch.nn.functional import cosine_similarity
-from enum import Enum
-from torchjd import mtl_backward, backward
-from torchjd.aggregation import UPGrad, Sum, Mean
+
 
 def print_weights(_, __, weights: torch.Tensor) -> None:
     """Prints the extracted weights."""
@@ -50,9 +54,10 @@ class VAEXperiment(pl.LightningModule):
         self.hold_graph = False
         self.automatic_optimization = False
 
-        self.aggregator = UPGrad(pref_vector=torch.Tensor([1, params['kld_preferred_weight']]).to(self.device),)
+        self.aggregator = self._get_aggregator(self.params['aggregator']) if self.params["backward_option"] != "torch" else Mean()
         #self.aggregator.weighting.register_forward_hook(print_weights)
         self.aggregator.register_forward_hook(self.log_cosine_similarity)
+        self.aggregator.register_forward_hook(self.log_mean_pairwise_cosine_similarity)
         #self.aggregator.register_forward_hook(print_jacobian)
         #self.aggregator.register_forward_hook(print_aggregated_gradients)
 
@@ -60,6 +65,16 @@ class VAEXperiment(pl.LightningModule):
             self.hold_graph = self.params['retain_first_backpass']
         except:
             pass
+
+    def _get_aggregator(self, aggregator_setting: str) -> UPGrad | PairwiseUpgradAggregator:
+        if aggregator_setting == "upgrad":
+            return UPGrad()
+        elif aggregator_setting == "pairwise_upgrad":
+            return PairwiseUpgradAggregator(final_aggregation="upgrad")
+        elif aggregator_setting == "pairwise_mean":
+            return PairwiseUpgradAggregator(final_aggregation="mean")
+        else:
+            raise ValueError(f"Unknown aggregator setting: {aggregator_setting}")
 
     def forward(self, input: Tensor, **kwargs) -> Tensor:
         return self.model(input, **kwargs)
@@ -98,22 +113,23 @@ class VAEXperiment(pl.LightningModule):
         backward_option = self.params.get('backward_option', BackwardOptions.TORCH)
 
         if backward_option == BackwardOptions.TORCH:
-            train_loss.backward()
+            train_loss.mean().backward()
         elif backward_option == BackwardOptions.TORCH_JD_BACKWARD:
-            backward(tensors=[reconstruction_loss, kld_loss],
+            backward(tensors=list(train_loss.flatten()),
                      aggregator=self.aggregator,
                      parallel_chunk_size=1,)
         elif backward_option == BackwardOptions.TORCH_JD_MTL_BACKWARD:
-            mtl_backward(losses=[reconstruction_loss, kld_loss],
+            mtl_backward(losses=list(train_loss.flatten()),
                             features=[mu, log_var],
                             aggregator=self.aggregator,
+                            retain_graph=True,
                             parallel_chunk_size=1,)
         else:
             raise ValueError("Invalid backward option")
         
         opt.step()
 
-        self.log_dict({key: val.item() for key, val in loss.items()}, sync_dist=True)
+        self.log_dict({key: val.mean().item() for key, val in loss.items()}, sync_dist=True)
 
         # if batch_idx % 1000 == 0:
         #     self.logger.experiment.add_histogram('Distribution of mu', mu.detach().cpu().numpy(), global_step=global_step, bins="rice")
@@ -131,7 +147,7 @@ class VAEXperiment(pl.LightningModule):
                                             #optimizer_idx = optimizer_idx,
                                             batch_idx = batch_idx)
 
-        self.log_dict({f"val_{key}": val.item() for key, val in val_loss.items()}, sync_dist=True)
+        self.log_dict({f"val_{key}": val.mean().item() for key, val in val_loss.items()}, sync_dist=True)
 
     def log_cosine_similarity(self, _, inputs: tuple[torch.Tensor], aggregation: torch.Tensor) -> None:
         """Logs the cosine similarity between the aggregation and the average gradient."""
@@ -139,6 +155,14 @@ class VAEXperiment(pl.LightningModule):
         gd_output = matrix.mean(dim=0)
         similarity = cosine_similarity(aggregation, gd_output, dim=0)
         self.log_dict({"Cosine Similarity": similarity.item()}, sync_dist=True)
+
+
+    def log_mean_pairwise_cosine_similarity(self, _, inputs: tuple[torch.Tensor], __) -> None:
+        """Logs the mean pairwise cosine similarity between reconstruction and KL loss."""
+        matrix = inputs[0]
+        pairwise_similarities = cosine_similarity(matrix[0::2], matrix[1::2])
+        mean_similarity = pairwise_similarities.mean()
+        self.log_dict({"Mean Pairwise Cosine Similarity": mean_similarity.item()}, sync_dist=True)
 
 
     def on_validation_end(self) -> None:

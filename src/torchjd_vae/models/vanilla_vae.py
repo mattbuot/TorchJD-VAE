@@ -1,8 +1,12 @@
 import torch
-from torchjd_vae.models import BaseVAE
 from torch import nn
 from torch.nn import functional as F
+
+from torchjd_vae.models import BaseVAE
+
 from .types_ import *
+
+
 class VanillaVAE(BaseVAE):
 
 
@@ -299,15 +303,15 @@ class MNISTVanillaVAE(BaseVAE):
         log_var = args[3]
 
         kld_weight = kwargs['M_N'] # Account for the minibatch samples from the dataset
-        recons_loss =F.mse_loss(recons, input)
+        recons_loss = F.mse_loss(recons, input, reduction="none").flatten(start_dim=1).mean(dim=1)
 
 
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = 1), dim = 0)
+        kld_loss = -0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim = 1)
 
-        loss = recons_loss + kld_weight * kld_loss
+        loss = torch.stack([recons_loss, kld_weight * kld_loss], dim=1)
         return {'loss': loss,
                 'Reconstruction_Loss':recons_loss,
-                'KLD': kld_weight * kld_loss}
+                'KLD': kld_loss}
 
     def sample(self,
                num_samples:int,
