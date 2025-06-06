@@ -1,3 +1,5 @@
+from ast import mod
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -226,19 +228,21 @@ class MNISTVanillaVAE(BaseVAE):
 
 
 
-        self.decoder = nn.Sequential(*modules)
+        modules += [
+            nn.ConvTranspose2d(
+                hidden_dims[-1],
+                hidden_dims[-1],
+                kernel_size=3,
+                stride=2,
+                padding=1,
+                output_padding=1
+            ),
+            nn.LeakyReLU(),
+            nn.Conv2d(hidden_dims[-1], out_channels=in_channels, kernel_size= 3, padding= 1),
+            nn.Tanh()
+        ]
 
-        self.final_layer = nn.Sequential(
-                            nn.ConvTranspose2d(hidden_dims[-1],
-                                               hidden_dims[-1],
-                                               kernel_size=3,
-                                               stride=2,
-                                               padding=1,
-                                               output_padding=1),
-                            nn.LeakyReLU(),
-                            nn.Conv2d(hidden_dims[-1], out_channels=in_channels,
-                                      kernel_size= 3, padding= 1),
-                            nn.Tanh())
+        self.decoder = nn.Sequential(*modules)
 
     def encode(self, input: Tensor) -> List[Tensor]:
         """
@@ -267,7 +271,6 @@ class MNISTVanillaVAE(BaseVAE):
         result = self.decoder_input(z)
         result = result.view(-1, 32, 7*2, 7*2)
         result = self.decoder(result)
-        result = self.final_layer(result)
         return result
 
     def reparameterize(self, mu: Tensor, logvar: Tensor) -> Tensor:

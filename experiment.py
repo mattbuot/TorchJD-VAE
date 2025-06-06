@@ -13,9 +13,11 @@ from torchjd.aggregation import Mean, Sum, UPGrad
 from torchvision import transforms
 from torchvision.datasets import CelebA
 
-from custom_aggregation import PairwiseUpgradAggregator
+#from custom_aggregation import PairwiseUpgradAggregator
+from pairwise_loss_transform import vae_backward
 from torchjd_vae.models import BaseVAE
 from torchjd_vae.models.types_ import *
+from torchjd_vae.models.vanilla_vae import MNISTVanillaVAE
 from utils import data_loader
 
 
@@ -44,7 +46,7 @@ global_step = 0
 class VAEXperiment(pl.LightningModule):
 
     def __init__(self,
-                 vae_model: BaseVAE,
+                 vae_model: MNISTVanillaVAE,
                  params: dict) -> None:
         super(VAEXperiment, self).__init__()
 
@@ -54,7 +56,7 @@ class VAEXperiment(pl.LightningModule):
         self.hold_graph = False
         self.automatic_optimization = False
 
-        self.aggregator = self._get_aggregator(self.params['aggregator']) if self.params["backward_option"] != "torch" else Mean()
+        self.aggregator = UPGrad()#self._get_aggregator(self.params['aggregator']) if self.params["backward_option"] != "torch" else Mean()
         #self.aggregator.weighting.register_forward_hook(print_weights)
         self.aggregator.register_forward_hook(self.log_cosine_similarity)
         self.aggregator.register_forward_hook(self.log_mean_pairwise_cosine_similarity)
@@ -66,15 +68,15 @@ class VAEXperiment(pl.LightningModule):
         except:
             pass
 
-    def _get_aggregator(self, aggregator_setting: str) -> UPGrad | PairwiseUpgradAggregator:
-        if aggregator_setting == "upgrad":
-            return UPGrad()
-        elif aggregator_setting == "pairwise_upgrad":
-            return PairwiseUpgradAggregator(final_aggregation="upgrad")
-        elif aggregator_setting == "pairwise_mean":
-            return PairwiseUpgradAggregator(final_aggregation="mean")
-        else:
-            raise ValueError(f"Unknown aggregator setting: {aggregator_setting}")
+    # def _get_aggregator(self, aggregator_setting: str) -> UPGrad | PairwiseUpgradAggregator:
+    #     if aggregator_setting == "upgrad":
+    #         return UPGrad()
+    #     elif aggregator_setting == "pairwise_upgrad":
+    #         return PairwiseUpgradAggregator(final_aggregation="upgrad")
+    #     elif aggregator_setting == "pairwise_mean":
+    #         return PairwiseUpgradAggregator(final_aggregation="mean")
+    #     else:
+    #         raise ValueError(f"Unknown aggregator setting: {aggregator_setting}")
 
     def forward(self, input: Tensor, **kwargs) -> Tensor:
         return self.model(input, **kwargs)
@@ -108,6 +110,7 @@ class VAEXperiment(pl.LightningModule):
             TORCH = "torch"
             TORCH_JD_BACKWARD = "torch_jd_backward"
             TORCH_JD_MTL_BACKWARD = "torch_jd_mtl_backward"
+            VAE_BACKWARD = "vae_backward"
 
 
         backward_option = self.params.get('backward_option', BackwardOptions.TORCH)
@@ -124,6 +127,15 @@ class VAEXperiment(pl.LightningModule):
                             aggregator=self.aggregator,
                             retain_graph=True,
                             parallel_chunk_size=1,)
+        elif backward_option == BackwardOptions.VAE_BACKWARD:
+            vae_backward(losses=list(train_loss.flatten()),
+                         encoder_params=self.model.encoder.parameters(),
+                         decoder_params=self.model.decoder.parameters(),
+                         aggregator=self.aggregator,
+                         inputs=[real_img],
+                         retain_graph=True,
+                         parallel_chunk_size=1)
+        
         else:
             raise ValueError("Invalid backward option")
         

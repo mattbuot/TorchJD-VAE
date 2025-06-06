@@ -108,10 +108,16 @@ if __name__ == "__main__":
         #"configs/grid_search2/mnist_vae26.yaml",
         #"configs/grid_search2/mnist_vae27.yaml",
         #"configs/grid_search2/mnist_vae28.yaml",
-        "configs/grid_search2/mnist_vae30.yaml",
-        "configs/grid_search2/mnist_vae31.yaml",
-        "configs/grid_search2/mnist_vae32.yaml",
-        "configs/grid_search2/mnist_vae29.yaml",
+        # "configs/grid_search2/mnist_vae30.yaml",
+        # "configs/grid_search2/mnist_vae31.yaml",
+        # "configs/grid_search2/mnist_vae32.yaml",
+        # "configs/grid_search2/mnist_vae29.yaml",
+        #"configs/grid_search2/mnist_vae33.yaml",
+        # "configs/grid_search2/mnist_vae34.yaml",
+        # "configs/grid_search2/mnist_vae35.yaml",
+        "configs/grid_search2/mnist_vae36.yaml",
+        "configs/grid_search2/mnist_vae37.yaml",
+        "configs/grid_search2/mnist_vae38.yaml",
 
     ]:
         main(config_file)
